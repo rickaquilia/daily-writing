@@ -1,1 +1,1 @@
-# daily-writing
+# Daily Writing
