@@ -1,0 +1,1031 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="One writing prompt a day. Write on the page, sign in with Google, and your entry is saved to a Daily Writing doc in your own Google Drive."
+    />
+    <!-- Empty inline icon: stops the browser fetching /favicon.ico, which
+         lives outside the artifact's routes and 404s. -->
+    <link rel="icon" href="data:," />
+    <title>Daily Writing — one prompt a day</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=Public+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Google Identity Services: provides the sign-in and the access token
+         used for the Drive / Docs calls below. -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+    <script>
+      // Apply a saved theme choice before paint, so there is no flash.
+      // Light is always the default; the page never follows the OS setting.
+      (function () {
+        try {
+          if (localStorage.getItem("daily-writing-theme") === "dark") {
+            document.documentElement.setAttribute("data-theme", "dark");
+          }
+        } catch (e) {
+          /* storage unavailable — stay in light mode */
+        }
+      })();
+    </script>
+
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #faf7f1;
+        --surface: #fffdf9;
+        --text: #23201b;
+        --dim: #7a7264;
+        --border: #e7dfd2;
+        --accent: #9a3f2c;
+        --accent-hover: #843523;
+        --accent-soft: #f3e7e0;
+        --ok: #2e6b34;
+        --radius: 10px;
+        --serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+        --sans: "Public Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      html[data-theme="dark"] {
+        color-scheme: dark;
+        --bg: #17140f;
+        --surface: #211d16;
+        --text: #ece5d8;
+        --dim: #a29885;
+        --border: #3a342a;
+        --accent: #d98a6e;
+        --accent-hover: #e29a7e;
+        --accent-soft: #2e2620;
+        --ok: #8fce97;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--sans);
+        -webkit-font-smoothing: antialiased;
+        transition: background-color 0.35s ease, color 0.35s ease;
+      }
+      a { color: var(--accent); }
+
+      /* Phone tap targets: at least 36px tall for standalone controls. */
+      button, [role="button"], select, summary,
+      input:not([type="checkbox"], [type="radio"]) { min-height: 2.25rem; }
+
+      .wrap {
+        max-width: 42rem;
+        margin: 0 auto;
+        padding: 1.25rem 1.25rem 4rem;
+      }
+      @media (min-width: 640px) {
+        .wrap { padding-top: 2.5rem; }
+      }
+
+      /* ---- top bar: wordmark + theme toggle ---- */
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 2.5rem;
+      }
+      .wordmark {
+        font-family: var(--serif);
+        font-weight: 600;
+        font-size: 1.05rem;
+        letter-spacing: 0.01em;
+      }
+      .theme-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.75rem;
+        height: 2.75rem;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text);
+        cursor: pointer;
+        flex: none;
+      }
+      .theme-toggle:hover { border-color: var(--dim); }
+      .theme-toggle svg { width: 1.15rem; height: 1.15rem; }
+      .theme-toggle .icon-moon { display: none; }
+      html[data-theme="dark"] .theme-toggle .icon-sun { display: none; }
+      html[data-theme="dark"] .theme-toggle .icon-moon { display: block; }
+
+      /* ---- prompt ---- */
+      .date-label {
+        margin: 0;
+        font-size: 0.875rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        color: var(--accent);
+      }
+      .prompt {
+        margin: 0.75rem 0 0;
+        font-family: var(--serif);
+        font-weight: 600;
+        font-size: 1.875rem;
+        line-height: 1.3;
+      }
+      @media (min-width: 640px) {
+        .prompt { font-size: 2.25rem; }
+      }
+      .prompt-note {
+        margin: 0.9rem 0 0;
+        font-size: 0.9rem;
+        color: var(--dim);
+      }
+
+      /* ---- account / sign-in ---- */
+      .account {
+        margin-top: 2.25rem;
+        padding: 1rem 1.1rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+      }
+      .account p { margin: 0; font-size: 0.9rem; line-height: 1.5; }
+      .account .account-head {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+      .account .who {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        min-width: 0;
+      }
+      .account .avatar {
+        width: 2rem;
+        height: 2rem;
+        border-radius: 999px;
+        flex: none;
+      }
+      .account .who-text { min-width: 0; }
+      .account .who-name {
+        font-size: 0.9rem;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .account .who-email {
+        font-size: 0.8rem;
+        color: var(--dim);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .account .spacer { flex: 1; }
+      .account .doc-line {
+        margin-top: 0.6rem;
+        font-size: 0.85rem;
+        color: var(--dim);
+      }
+      .account .doc-line a {
+        display: inline-block;
+        padding: 0.5rem 0;
+        margin: -0.5rem 0;
+      }
+
+      .btn-google {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.6rem;
+        min-height: 2.75rem;
+        padding: 0.55rem 1.1rem;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--surface);
+        color: var(--text);
+        font-family: var(--sans);
+        font-size: 0.925rem;
+        font-weight: 500;
+        cursor: pointer;
+      }
+      .btn-google:hover { border-color: var(--dim); }
+      .btn-google:disabled { opacity: 0.5; cursor: default; }
+      .btn-google svg { width: 1.15rem; height: 1.15rem; flex: none; }
+
+      .btn-quiet {
+        min-height: 2.75rem;
+        padding: 0.55rem 0.9rem;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: transparent;
+        color: var(--text);
+        font-family: var(--sans);
+        font-size: 0.875rem;
+        cursor: pointer;
+      }
+      .btn-quiet:hover { border-color: var(--dim); }
+
+      .setup-note {
+        margin-top: 0.7rem;
+        font-size: 0.85rem;
+        color: var(--dim);
+      }
+
+      /* ---- writing area ---- */
+      .write-block { margin-top: 2.5rem; }
+      .write-label {
+        display: block;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--dim);
+        margin-bottom: 0.5rem;
+      }
+      textarea {
+        width: 100%;
+        min-height: 16rem;
+        resize: vertical;
+        padding: 0.9rem 1rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--surface);
+        color: var(--text);
+        font-family: var(--serif);
+        font-size: 1.125rem;
+        line-height: 1.65;
+      }
+      textarea::placeholder { color: var(--dim); }
+      textarea:focus { outline: none; border-color: var(--accent); }
+      .write-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-top: 0.35rem;
+        font-size: 0.75rem;
+        color: var(--dim);
+        min-height: 1rem;
+      }
+
+      /* ---- save ---- */
+      .save-block { margin-top: 1.25rem; }
+      .btn-save {
+        width: 100%;
+        min-height: 3rem;
+        padding: 0.8rem 1.25rem;
+        border: none;
+        border-radius: var(--radius);
+        background: var(--accent);
+        color: #fff;
+        font-family: var(--sans);
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      @media (min-width: 640px) {
+        .btn-save { width: auto; min-width: 13rem; }
+      }
+      html[data-theme="dark"] .btn-save { color: #1d130c; }
+      .btn-save:hover:not(:disabled) { background: var(--accent-hover); }
+      .btn-save:disabled { opacity: 0.4; cursor: default; }
+
+      .save-status { margin-top: 0.85rem; font-size: 0.9rem; line-height: 1.5; }
+      .save-status:empty { display: none; }
+      .save-status.is-error { color: var(--accent); }
+      .save-status.is-saved { color: var(--text); }
+      .save-status .doc-open {
+        display: inline-block;
+        padding: 0.6rem 0;
+        margin: -0.6rem 0;
+        font-weight: 500;
+      }
+      .btn-retry {
+        margin-top: 0.6rem;
+        min-height: 2.75rem;
+        padding: 0.55rem 1rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--surface);
+        color: var(--text);
+        font-family: var(--sans);
+        font-size: 0.875rem;
+        cursor: pointer;
+      }
+
+      /* ---- how it works ---- */
+      .how {
+        margin-top: 3.5rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--border);
+        font-size: 0.9rem;
+        line-height: 1.6;
+        color: var(--dim);
+      }
+      .how h2 {
+        margin: 0 0 0.6rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--text);
+      }
+      .how p { margin: 0 0 0.6rem; }
+      .how .entry-format {
+        margin: 0.75rem 0;
+        padding: 0.8rem 1rem;
+        background: var(--accent-soft);
+        border-radius: var(--radius);
+        font-family: var(--serif);
+        font-size: 0.95rem;
+        color: var(--text);
+        white-space: pre-line;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <div class="topbar">
+        <span class="wordmark">Daily Writing</span>
+        <button
+          type="button"
+          class="theme-toggle"
+          id="themeToggle"
+          aria-label="Switch between light and dark mode"
+        >
+          <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="4"></circle>
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
+          </svg>
+          <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+      </div>
+
+      <p class="date-label" id="dateLabel"></p>
+      <h1 class="prompt" id="promptText"></h1>
+      <p class="prompt-note">A new prompt every day. Miss a day? Nothing happens — just pick it back up when you can.</p>
+
+      <section class="account" id="accountBox" aria-label="Google account">
+        <!-- Signed-out view -->
+        <div id="signedOutView">
+          <p>
+            Sign in with Google and each entry you save is appended to a
+            Google Doc called <strong>“Daily Writing”</strong> in your own
+            Drive — created for you on your first save.
+          </p>
+          <div class="account-head" style="margin-top: 0.8rem;">
+            <button type="button" class="btn-google" id="signInBtn">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="#4285F4" d="M23.5 12.27c0-.85-.08-1.66-.22-2.45H12v4.64h6.45a5.52 5.52 0 0 1-2.39 3.64v3.02h3.87c2.26-2.09 3.57-5.16 3.57-8.85z"/>
+                <path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.94-2.91l-3.87-3.02c-1.07.72-2.45 1.15-4.07 1.15-3.13 0-5.78-2.11-6.73-4.96H1.29v3.12A11.99 11.99 0 0 0 12 24z"/>
+                <path fill="#FBBC05" d="M5.27 14.26A7.2 7.2 0 0 1 4.89 12c0-.79.14-1.56.38-2.26V6.62H1.29a12 12 0 0 0 0 10.76l3.98-3.12z"/>
+                <path fill="#EA4335" d="M12 4.78c1.76 0 3.35.61 4.6 1.8l3.44-3.44A11.98 11.98 0 0 0 12 0 11.99 11.99 0 0 0 1.29 6.62l3.98 3.12C6.22 6.89 8.87 4.78 12 4.78z"/>
+              </svg>
+              Sign in with Google
+            </button>
+          </div>
+          <p class="setup-note" id="setupNote" hidden>
+            Google sign-in is still being switched on for this page, so the
+            button is inactive in this preview. Once the site’s Google client
+            ID is added, sign-in and saving go live with no other changes.
+          </p>
+        </div>
+
+        <!-- Signed-in view -->
+        <div id="signedInView" hidden>
+          <div class="account-head">
+            <div class="who">
+              <img class="avatar" id="avatarImg" alt="" hidden />
+              <div class="who-text">
+                <div class="who-name" id="whoName"></div>
+                <div class="who-email" id="whoEmail"></div>
+              </div>
+            </div>
+            <span class="spacer"></span>
+            <button type="button" class="btn-quiet" id="signOutBtn">Sign out</button>
+          </div>
+          <p class="doc-line" id="docLine">
+            Your entries save to your “Daily Writing” doc — it’s created on your first save.
+          </p>
+        </div>
+      </section>
+
+      <div class="write-block">
+        <label class="write-label" for="writeup">Write here</label>
+        <textarea id="writeup" rows="12" placeholder="Start writing…"></textarea>
+        <div class="write-meta">
+          <span id="wordCount"></span>
+          <span>Saved entries land in your Doc in the order you write them.</span>
+        </div>
+      </div>
+
+      <div class="save-block">
+        <button type="button" class="btn-save" id="saveBtn" disabled>Save to my Doc</button>
+        <div class="save-status" id="saveStatus" role="status" aria-live="polite"></div>
+      </div>
+
+      <section class="how">
+        <h2>How it works</h2>
+        <p>
+          One prompt a day, rotating through gratitude, everyday journaling,
+          a bit of fun, and small writing exercises. Write as much or as
+          little as you like — there’s no target and no streak to keep.
+        </p>
+        <p>Every saved entry is appended to the same “Daily Writing” doc, in this format:</p>
+        <p class="entry-format">Sunday, November 15, 2026
+Name three small things that went right today…
+
+Your writing goes here, under the prompt it answers.</p>
+        <p>
+          The doc lives in your own Google Drive, under your own account.
+          This page never sees your password — Google handles the sign-in,
+          and the page only gets permission to work with the doc it creates
+          and your documents.
+        </p>
+      </section>
+    </main>
+
+    <script>
+      "use strict";
+
+      /* ================================================================
+         CONFIG — Google sign-in
+         ----------------------------------------------------------------
+         Paste the OAuth 2.0 Web client ID for this site between the
+         quotes below. It comes from Google Cloud Console →
+         APIs & Services → Credentials, and the site's origin
+         (e.g. https://rickaquilia.github.io) must be listed under that
+         client's "Authorized JavaScript origins".
+
+         While this is still the placeholder text, the page runs in
+         preview mode: prompt and writing box work, and the sign-in
+         button explains that setup is pending instead of failing.
+         ================================================================ */
+      var GOOGLE_CLIENT_ID = "677000176275-2maa1fihejkpvt6479ggh2s5o7b58ulr.apps.googleusercontent.com";
+
+      var DOC_NAME = "Daily Writing";
+      var SCOPES =
+        "https://www.googleapis.com/auth/drive.file " +
+        "https://www.googleapis.com/auth/documents " +
+        "openid profile email";
+
+      var signInConfigured =
+        GOOGLE_CLIENT_ID !== "PASTE_GOOGLE_OAUTH_CLIENT_ID_HERE" &&
+        GOOGLE_CLIENT_ID.indexOf(".apps.googleusercontent.com") !== -1;
+
+      /* ---------------- Prompt pool ----------------
+         One prompt per day, chosen by a deterministic rotation over the
+         day index, so the prompt is the same all day and changes at
+         midnight (the visitor's local time). Kinds: gratitude, everyday
+         journaling, for fun, writing craft. */
+      var PROMPTS = [
+        // Gratitude
+        "Name three small things that went right today, and say a sentence about each.",
+        "Who did something kind for you recently, even something tiny? Write about what they did and what it meant.",
+        "What is one ordinary thing you use every day that you would miss if it were gone?",
+        "Think of a hard stretch you got through. What are you grateful for on the other side of it?",
+        "Write about a meal you were glad to eat this week. Who made it, where were you, how did it taste?",
+        "What is something your past self did that your present self is thankful for?",
+        "Name a place you are grateful exists. Describe being there.",
+        "What sound, smell, or sight reliably makes your day a little better?",
+        "Write a thank-you note to someone who will never read it.",
+        "What is one thing about your body or health you can honestly be grateful for today?",
+        "Think of a mistake that taught you something useful. What did it give you?",
+        "Who makes you laugh? Write about the last time they did.",
+        "What is a convenience of modern life you usually take for granted?",
+        "Describe a good conversation you have had lately and why it stuck with you.",
+        "What are you looking forward to, even a little? Write about why.",
+        // Everyday journaling and reflection
+        "Describe today in detail: where you went, what you ate, who you talked to. No conclusions, just the record.",
+        "What has been on your mind the most this week? Write it out until it feels smaller.",
+        "What is one decision in front of you right now? Lay out both sides honestly.",
+        "Write about where you are in life compared to where you thought you would be. What surprises you?",
+        "What did you learn recently that changed how you see something?",
+        "Describe your morning today, minute by minute, as best you remember it.",
+        "What is something you have been avoiding? Write about why, without judging yourself.",
+        "Write about a recent moment when you felt proud of yourself, however small.",
+        "What would a good ordinary day look like for you right now? Describe it hour by hour.",
+        "What is one thing you want more of in your life, and one thing you want less of?",
+        "Think back one year. What was happening, and what has changed since?",
+        "Write about a worry that turned out fine. What actually happened?",
+        "What is something you believed as a kid that you see differently now?",
+        "Describe someone you have been thinking about lately and why they are on your mind.",
+        "If today had a headline, what would it be? Write the story under it.",
+        // For fun
+        "Invent a holiday that does not exist. What is it called, and how do people celebrate it?",
+        "Write about your life from the point of view of your pet, your car, or your favorite chair.",
+        "You find a door in your home that was never there before. Where does it lead?",
+        "Describe the best meal you can imagine, course by course, in a place that may not exist.",
+        "Write the opening of a story that starts with the last text message you received.",
+        "If you could have dinner with any person, living or not, who would it be and what would you ask?",
+        "Invent a small town with one strange rule everyone follows. What is the rule, and why?",
+        "Write about a superpower that sounds great but would mostly be annoying.",
+        "Describe your dream house, room by room, with no budget and no physics.",
+        "Take an ordinary errand and write it up like the climax of an action movie.",
+        "Write a product review for something that does not exist yet.",
+        "What would the movie of this year of your life be called? Write its trailer in words.",
+        "Invent a conversation between two objects on your desk.",
+        "Write about the best day you can remember as if you are telling it to a friend who missed it.",
+        "If money and time were no object for one weekend, what exactly would you do?",
+        // Writing craft
+        "Describe the room you are in using only what you can hear and smell. No sight allowed.",
+        "Pick one object near you and write about it for five minutes without stopping.",
+        "Write a scene where two people want different things, using only dialogue.",
+        "Describe a person you know well without naming a single physical feature.",
+        "Take a memory and write it in the present tense, as if it is happening now.",
+        "Write about a familiar place as if you are seeing it for the first time.",
+        "Tell a true story from your life in exactly ten sentences.",
+        "Describe a strong emotion without naming it. Let the details do the work.",
+        "Write the same short scene twice: once rushed, once slow.",
+        "Start with the sentence 'The last time I saw it, it was...' and keep going.",
+        "Write about a photograph you remember clearly. Describe it, then say what it leaves out.",
+        "Describe a meal using all five senses, one sentence each.",
+        "Write a letter to your future self, one year from now. Be specific.",
+        "Pick a word you like the sound of and build a short piece around it.",
+        "Write about something ordinary as if it were the most important thing in the world."
+      ];
+
+      /* ---------------- Today ---------------- */
+      function computeToday() {
+        var now = new Date();
+        var dateKey =
+          now.getFullYear() +
+          "-" +
+          String(now.getMonth() + 1).padStart(2, "0") +
+          "-" +
+          String(now.getDate()).padStart(2, "0");
+        var dateLabel = new Intl.DateTimeFormat("en-US", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric"
+        }).format(now);
+        // Whole days since the epoch, from the local calendar date, so
+        // DST never shifts the rotation.
+        var dayIndex = Math.floor(
+          Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 86400000
+        );
+        var idx = ((dayIndex % PROMPTS.length) + PROMPTS.length) % PROMPTS.length;
+        return { dateKey: dateKey, dateLabel: dateLabel, prompt: PROMPTS[idx] };
+      }
+
+      var today = computeToday();
+
+      /* ---------------- Elements ---------------- */
+      var dateLabelEl = document.getElementById("dateLabel");
+      var promptEl = document.getElementById("promptText");
+      var writeupEl = document.getElementById("writeup");
+      var wordCountEl = document.getElementById("wordCount");
+      var saveBtn = document.getElementById("saveBtn");
+      var saveStatusEl = document.getElementById("saveStatus");
+      var signInBtn = document.getElementById("signInBtn");
+      var signOutBtn = document.getElementById("signOutBtn");
+      var setupNoteEl = document.getElementById("setupNote");
+      var signedOutView = document.getElementById("signedOutView");
+      var signedInView = document.getElementById("signedInView");
+      var avatarImg = document.getElementById("avatarImg");
+      var whoNameEl = document.getElementById("whoName");
+      var whoEmailEl = document.getElementById("whoEmail");
+      var docLineEl = document.getElementById("docLine");
+
+      function renderToday() {
+        dateLabelEl.textContent = today.dateLabel;
+        promptEl.textContent = today.prompt;
+      }
+      renderToday();
+
+      // If the page is left open across midnight, roll to the new prompt —
+      // but never yank the prompt away from someone mid-entry.
+      setInterval(function () {
+        var fresh = computeToday();
+        if (fresh.dateKey !== today.dateKey && writeupEl.value.trim() === "") {
+          today = fresh;
+          renderToday();
+          clearStatus();
+        }
+      }, 60000);
+
+      /* ---------------- Theme toggle ---------------- */
+      document.getElementById("themeToggle").addEventListener("click", function () {
+        var root = document.documentElement;
+        var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+        root.setAttribute("data-theme", next);
+        try {
+          localStorage.setItem("daily-writing-theme", next);
+        } catch (e) {
+          /* storage unavailable — the toggle still works for this visit */
+        }
+      });
+
+      /* ---------------- Writing box ---------------- */
+      function refreshWordCount() {
+        var text = writeupEl.value.trim();
+        var count = text === "" ? 0 : text.split(/\s+/).length;
+        wordCountEl.textContent =
+          count > 0 ? count + (count === 1 ? " word" : " words") : "";
+        saveBtn.disabled = text === "" || saving;
+      }
+      writeupEl.addEventListener("input", function () {
+        refreshWordCount();
+        // New writing after a completed save clears the old confirmation.
+        if (saveState === "saved") {
+          saveState = "idle";
+          clearStatus();
+        }
+      });
+
+      /* ---------------- Status line ---------------- */
+      function clearStatus() {
+        saveStatusEl.className = "save-status";
+        saveStatusEl.innerHTML = "";
+      }
+      function showStatus(kind, message, withRetry) {
+        saveStatusEl.className = "save-status" + (kind ? " is-" + kind : "");
+        saveStatusEl.innerHTML = "";
+        var p = document.createElement("span");
+        p.textContent = message;
+        saveStatusEl.appendChild(p);
+        if (kind === "saved" && docId) {
+          saveStatusEl.appendChild(document.createTextNode(" "));
+          var a = document.createElement("a");
+          a.href = "https://docs.google.com/document/d/" + docId + "/edit";
+          a.target = "_blank";
+          a.rel = "noreferrer";
+          a.className = "doc-open";
+          a.textContent = "Open the doc";
+          saveStatusEl.appendChild(a);
+        }
+        if (withRetry) {
+          var br = document.createElement("br");
+          saveStatusEl.appendChild(br);
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "btn-retry";
+          btn.textContent = "Try saving again";
+          btn.addEventListener("click", function () {
+            saveEntry();
+          });
+          saveStatusEl.appendChild(btn);
+        }
+      }
+
+      /* ---------------- Google sign-in + API ---------------- */
+      var tokenClient = null;
+      var accessToken = null;
+      var tokenExpiresAt = 0;
+      var docId = null;
+      var saving = false;
+      var saveState = "idle"; // idle | saving | saved | failed
+      var pendingSaveAfterSignIn = false;
+
+      function gisReady() {
+        return (
+          typeof window.google !== "undefined" &&
+          window.google.accounts &&
+          window.google.accounts.oauth2
+        );
+      }
+
+      function initTokenClient() {
+        if (!signInConfigured || tokenClient || !gisReady()) return false;
+        tokenClient = window.google.accounts.oauth2.initTokenClient({
+          client_id: GOOGLE_CLIENT_ID,
+          scope: SCOPES,
+          callback: function (resp) {
+            if (resp && resp.access_token) {
+              accessToken = resp.access_token;
+              tokenExpiresAt =
+                Date.now() + (resp.expires_in ? resp.expires_in * 1000 : 3600000) - 60000;
+              onSignedIn();
+              if (pendingSaveAfterSignIn) {
+                pendingSaveAfterSignIn = false;
+                saveEntry();
+              }
+            } else {
+              pendingSaveAfterSignIn = false;
+              showStatus(
+                "error",
+                "Sign-in didn’t complete. Your writing is still in the box — try again when you’re ready.",
+                false
+              );
+            }
+          },
+          error_callback: function () {
+            pendingSaveAfterSignIn = false;
+            showStatus(
+              "error",
+              "Sign-in didn’t complete. Your writing is still in the box — try again when you’re ready.",
+              false
+            );
+          }
+        });
+        return true;
+      }
+
+      function tokenStillValid() {
+        return !!accessToken && Date.now() < tokenExpiresAt;
+      }
+
+      function requestToken(interactive) {
+        if (!initTokenClient()) {
+          showStatus(
+            "error",
+            "Google sign-in could not be loaded. Check your connection and reload the page.",
+            false
+          );
+          return;
+        }
+        tokenClient.requestAccessToken({ prompt: interactive ? "consent" : "" });
+      }
+
+      function apiFetch(url, options) {
+        var opts = options || {};
+        opts.headers = Object.assign({}, opts.headers || {}, {
+          Authorization: "Bearer " + accessToken
+        });
+        return fetch(url, opts).then(function (res) {
+          if (res.status === 401) {
+            accessToken = null;
+            tokenExpiresAt = 0;
+            renderSignedOut();
+            throw new Error("expired");
+          }
+          if (!res.ok) {
+            throw new Error("Google API request failed (" + res.status + ")");
+          }
+          return res.status === 204 ? null : res.json();
+        });
+      }
+
+      function onSignedIn() {
+        apiFetch("https://www.googleapis.com/oauth2/v3/userinfo")
+          .then(function (info) {
+            if (info) {
+              whoNameEl.textContent = info.name || "Signed in";
+              whoEmailEl.textContent = info.email || "";
+              if (info.picture) {
+                avatarImg.src = info.picture;
+                avatarImg.hidden = false;
+              }
+            }
+            renderSignedIn();
+          })
+          .catch(function () {
+            whoNameEl.textContent = "Signed in";
+            whoEmailEl.textContent = "";
+            renderSignedIn();
+          });
+        // Warm up the doc lookup so the account box can link to the doc
+        // if this visitor already has one from this page.
+        findDoc()
+          .then(function (id) {
+            if (id) {
+              docId = id;
+              renderDocLine();
+            }
+          })
+          .catch(function () {
+            /* doc lookup is best-effort here; saving retries it */
+          });
+      }
+
+      function renderSignedIn() {
+        signedOutView.hidden = true;
+        signedInView.hidden = false;
+        renderDocLine();
+      }
+      function renderSignedOut() {
+        signedInView.hidden = true;
+        signedOutView.hidden = false;
+      }
+      function renderDocLine() {
+        if (docId) {
+          docLineEl.innerHTML = "";
+          docLineEl.appendChild(
+            document.createTextNode("Your entries save to your “Daily Writing” doc. ")
+          );
+          var a = document.createElement("a");
+          a.href = "https://docs.google.com/document/d/" + docId + "/edit";
+          a.target = "_blank";
+          a.rel = "noreferrer";
+          a.textContent = "Open it";
+          docLineEl.appendChild(a);
+        } else {
+          docLineEl.textContent =
+            "Your entries save to your “Daily Writing” doc — it’s created on your first save.";
+        }
+      }
+
+      signInBtn.addEventListener("click", function () {
+        if (!signInConfigured) return; // preview mode: note explains the state
+        if (!gisReady()) {
+          // GIS script may still be loading; wait briefly, then retry once.
+          signInBtn.disabled = true;
+          var tries = 0;
+          var timer = setInterval(function () {
+            tries++;
+            if (gisReady() || tries > 20) {
+              clearInterval(timer);
+              signInBtn.disabled = false;
+              if (gisReady()) requestToken(true);
+              else
+                showStatus(
+                  "error",
+                  "Google sign-in could not be loaded. Check your connection and reload the page.",
+                  false
+                );
+            }
+          }, 250);
+          return;
+        }
+        requestToken(true);
+      });
+
+      signOutBtn.addEventListener("click", function () {
+        if (accessToken && gisReady()) {
+          window.google.accounts.oauth2.revoke(accessToken, function () {});
+        }
+        accessToken = null;
+        tokenExpiresAt = 0;
+        docId = null;
+        avatarImg.hidden = true;
+        renderSignedOut();
+        clearStatus();
+      });
+
+      if (!signInConfigured) {
+        signInBtn.disabled = true;
+        setupNoteEl.hidden = false;
+      }
+
+      /* ---------------- Drive / Docs ---------------- */
+      function findDoc() {
+        var q =
+          "name = '" + DOC_NAME + "' and " +
+          "mimeType = 'application/vnd.google-apps.document' and trashed = false";
+        var url =
+          "https://www.googleapis.com/drive/v3/files?q=" +
+          encodeURIComponent(q) +
+          "&fields=" +
+          encodeURIComponent("files(id,name,modifiedTime)") +
+          "&orderBy=modifiedTime%20desc&pageSize=1";
+        return apiFetch(url).then(function (data) {
+          if (data && data.files && data.files.length > 0) {
+            return data.files[0].id;
+          }
+          return null;
+        });
+      }
+
+      function createDoc() {
+        return apiFetch("https://www.googleapis.com/drive/v3/files", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: DOC_NAME,
+            mimeType: "application/vnd.google-apps.document"
+          })
+        }).then(function (file) {
+          return file.id;
+        });
+      }
+
+      function ensureDoc() {
+        if (docId) return Promise.resolve(docId);
+        return findDoc().then(function (id) {
+          if (id) {
+            docId = id;
+            return id;
+          }
+          return createDoc().then(function (newId) {
+            docId = newId;
+            return newId;
+          });
+        });
+      }
+
+      // Extracts the plain text of a Docs document body, and reports the
+      // index at which new text can be appended plus whether the doc
+      // already holds any writing.
+      function readDocState(id) {
+        return apiFetch("https://docs.googleapis.com/v1/documents/" + id).then(
+          function (doc) {
+            var content = (doc.body && doc.body.content) || [];
+            var text = "";
+            var endIndex = 1;
+            content.forEach(function (el) {
+              if (typeof el.endIndex === "number" && el.endIndex > endIndex) {
+                endIndex = el.endIndex;
+              }
+              if (el.paragraph && el.paragraph.elements) {
+                el.paragraph.elements.forEach(function (pe) {
+                  if (pe.textRun && pe.textRun.content) text += pe.textRun.content;
+                });
+              }
+            });
+            return {
+              text: text,
+              insertIndex: Math.max(1, endIndex - 1),
+              hasContent: text.trim().length > 0
+            };
+          }
+        );
+      }
+
+      function appendEntry(id, block) {
+        return readDocState(id).then(function (state) {
+          var textToInsert = (state.hasContent ? "\n" : "") + block;
+          return apiFetch(
+            "https://docs.googleapis.com/v1/documents/" + id + ":batchUpdate",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                requests: [
+                  {
+                    insertText: {
+                      location: { index: state.insertIndex },
+                      text: textToInsert
+                    }
+                  }
+                ]
+              })
+            }
+          ).then(function () {
+            // Confirm the entry is actually in the doc before saying so.
+            return readDocState(id).then(function (after) {
+              var probe = block.trim().slice(0, 60);
+              if (after.text.indexOf(probe) === -1) {
+                throw new Error("Append could not be confirmed in the doc.");
+              }
+            });
+          });
+        });
+      }
+
+      /* ---------------- Save ---------------- */
+      function saveEntry() {
+        var writeup = writeupEl.value.trim();
+        if (writeup === "" || saving) return;
+
+        if (!tokenStillValid()) {
+          // Need (re-)authorization first; continue the save right after.
+          pendingSaveAfterSignIn = true;
+          requestToken(false);
+          return;
+        }
+
+        saving = true;
+        saveState = "saving";
+        saveBtn.disabled = true;
+        saveBtn.textContent = "Saving to your Doc…";
+        clearStatus();
+
+        var block =
+          today.dateLabel + "\n" + today.prompt + "\n\n" + writeup + "\n";
+
+        ensureDoc()
+          .then(function (id) {
+            return appendEntry(id, block);
+          })
+          .then(function () {
+            saving = false;
+            saveState = "saved";
+            saveBtn.textContent = "Save to my Doc";
+            writeupEl.value = "";
+            refreshWordCount();
+            renderDocLine();
+            showStatus("saved", "Saved to your Daily Writing doc.", false);
+          })
+          .catch(function (err) {
+            saving = false;
+            saveState = "failed";
+            saveBtn.textContent = "Save to my Doc";
+            refreshWordCount();
+            if (err && err.message === "expired") {
+              showStatus(
+                "error",
+                "Your Google sign-in expired, so that save did not reach your doc. Sign in again, then try saving — your writing is still in the box.",
+                false
+              );
+            } else {
+              showStatus(
+                "error",
+                "That save did not reach your doc. Your writing is still in the box above.",
+                true
+              );
+            }
+          });
+      }
+
+      saveBtn.addEventListener("click", saveEntry);
+      refreshWordCount();
+    </script>
+  </body>
+</html>
