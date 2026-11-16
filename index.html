@@ -446,8 +446,8 @@ hr{border:0;border-top:1px solid var(--border);margin:28px 0}
           little as you like — there’s no target and no streak to keep.
         </p>
         <p>Every saved entry is appended to the same “Daily Writing” doc, in this format:</p>
-        <p class="entry-format">Sunday, November 15, 2026
-Name three small things that went right today…
+        <p class="entry-format">Name three small things that went right today…
+Sunday, November 15, 2026
 
 Your writing goes here, under the prompt it answers.</p>
         <p>
@@ -956,23 +956,57 @@ Your writing goes here, under the prompt it answers.</p>
         );
       }
 
-      function appendEntry(id, block) {
+      function appendEntry(id, block, promptStart, promptLength, dateLength) {
         return readDocState(id).then(function (state) {
           var textToInsert = (state.hasContent ? "\n" : "") + block;
+          // The prompt is the first paragraph in the block. Style it as a
+          // Heading 3 so each entry's prompt shows in the doc outline.
+          var promptIndex =
+            state.insertIndex + (state.hasContent ? 1 : 0) + promptStart;
+          var requests = [
+            {
+              insertText: {
+                location: { index: state.insertIndex },
+                text: textToInsert
+              }
+            }
+          ];
+          if (promptLength > 0) {
+            requests.push({
+              updateParagraphStyle: {
+                range: {
+                  startIndex: promptIndex,
+                  endIndex: promptIndex + promptLength + 1
+                },
+                paragraphStyle: {
+                  namedStyleType: "HEADING_3",
+                  spaceAfter: { magnitude: 0, unit: "PT" }
+                },
+                fields: "namedStyleType,spaceAfter"
+              }
+            });
+          }
+          // The date is the next paragraph, right after the prompt.
+          var dateStart = promptIndex + promptLength + 1;
+          if (dateLength > 0) {
+            requests.push({
+              updateTextStyle: {
+                range: {
+                  startIndex: dateStart,
+                  endIndex: dateStart + dateLength
+                },
+                textStyle: { italic: true },
+                fields: "italic"
+              }
+            });
+          }
           return apiFetch(
             "https://docs.googleapis.com/v1/documents/" + id + ":batchUpdate",
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                requests: [
-                  {
-                    insertText: {
-                      location: { index: state.insertIndex },
-                      text: textToInsert
-                    }
-                  }
-                ]
+                requests: requests
               })
             }
           ).then(function () {
@@ -1005,12 +1039,15 @@ Your writing goes here, under the prompt it answers.</p>
         saveBtn.textContent = "Saving to your Doc…";
         clearStatus();
 
+        // Prompt first as a Heading 3, date underneath, then the writing.
         var block =
-          today.dateLabel + "\n" + today.prompt + "\n\n" + writeup + "\n";
+          today.prompt + "\n" + today.dateLabel + "\n\n" + writeup + "\n";
+        // The prompt is the first paragraph in the block.
+        var promptStart = 0;
 
         ensureDoc()
           .then(function (id) {
-            return appendEntry(id, block);
+            return appendEntry(id, block, promptStart, today.prompt.length, today.dateLabel.length);
           })
           .then(function () {
             saving = false;
