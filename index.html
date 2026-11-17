@@ -985,6 +985,19 @@ Your writing goes here, under the prompt it answers.</p>
                 fields: "namedStyleType,spaceBelow"
               }
             });
+            // Heading 3 alone does not bold the text: this doc's
+            // Heading 3 style is defined as not bold, so set bold on
+            // the prompt text directly (same pattern as the date italic).
+            requests.push({
+              updateTextStyle: {
+                range: {
+                  startIndex: promptIndex,
+                  endIndex: promptIndex + promptLength
+                },
+                textStyle: { bold: true },
+                fields: "bold"
+              }
+            });
           }
           // The date is the next paragraph, right after the prompt.
           var dateStart = promptIndex + promptLength + 1;
